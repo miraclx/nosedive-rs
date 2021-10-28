@@ -1,16 +1,20 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
+use near_sdk::serde::Serialize;
 use near_sdk::{collections::LookupMap, AccountId};
 use near_sdk::{env, near_bindgen, require};
 
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(Eq, Debug, PartialEq, Serialize, BorshSerialize, BorshDeserialize)]
+#[serde(crate = "near_sdk::serde")]
 pub struct Votes {
     given: u64,
     received: u64,
 }
 
-#[derive(BorshDeserialize, BorshSerialize)]
+#[derive(Debug, PartialEq, Serialize, BorshSerialize, BorshDeserialize)]
+#[serde(crate = "near_sdk::serde")]
 pub struct UserState {
     rating: f32,
+    #[serde(flatten)]
     votes: Votes,
 }
 
@@ -63,7 +67,7 @@ impl NoseDive {
         let mut my_state = self.records.get(&my_account_id).unwrap_or_default();
         let mut them_state = self.records.get(&account_id).unwrap_or_default();
         them_state.rating = ((them_state.rating * them_state.votes.received as f32)
-            + (rating * my_state.rating) / 5.0)
+            + (rating + my_state.rating) / 2.0)
             / {
                 my_state.votes.given += 1;
                 them_state.votes.received += 1;
@@ -73,10 +77,8 @@ impl NoseDive {
         self.records.insert(&account_id, &them_state);
     }
 
-    pub fn get_rating(&self, account_id: AccountId) -> Option<f32> {
-        self.records
-            .get(&account_id)
-            .map(|user_state| user_state.rating)
+    pub fn get_stats(&self, account_id: AccountId) -> Option<UserState> {
+        self.records.get(&account_id)
     }
 }
 
@@ -114,8 +116,14 @@ mod tests {
         let mut contract = NoseDive::default();
         contract.vote_for("alice_near".parse().unwrap(), 1.0);
         assert_eq!(
-            Some(1.2),
-            contract.get_rating("alice_near".parse().unwrap())
+            contract.get_stats("alice_near".parse().unwrap()),
+            Some(UserState {
+                rating: 1.75,
+                votes: Votes {
+                    given: 0,
+                    received: 2,
+                }
+            })
         );
     }
 
