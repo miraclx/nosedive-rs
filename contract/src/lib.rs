@@ -2,10 +2,28 @@ use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::{collections::LookupMap, AccountId};
 use near_sdk::{env, near_bindgen, require};
 
-#[derive(Default, BorshDeserialize, BorshSerialize)]
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct Votes {
+    given: u64,
+    received: u64,
+}
+
+#[derive(BorshDeserialize, BorshSerialize)]
 pub struct UserState {
     rating: f32,
-    votes: u64,
+    votes: Votes,
+}
+
+impl Default for UserState {
+    fn default() -> Self {
+        Self {
+            rating: 2.0, // you're a 2 simply for existing
+            votes: Votes {
+                given: 0,
+                received: 1,
+            },
+        }
+    }
 }
 
 #[near_bindgen]
@@ -34,16 +52,25 @@ impl NoseDive {
             validate_rating(rating),
             "enter a valid rating between 0.5-5.0 (steps by 0.5)"
         );
-        require!(
+        println!("{} {}", account_id, env::signer_account_id());
+        assert!(
             account_id != env::signer_account_id(),
-            "you can't rate yourself"
+            "you can't rate yourself {} {}",
+            account_id,
+            env::signer_account_id()
         );
-        let mut user_state = self.records.get(&account_id).unwrap_or_default();
-        user_state.rating = ((user_state.rating * user_state.votes as f32) + rating) / {
-            user_state.votes += 1;
-            user_state.votes as f32
-        };
-        self.records.insert(&account_id, &user_state);
+        let my_account_id = env::signer_account_id();
+        let mut my_state = self.records.get(&my_account_id).unwrap_or_default();
+        let mut them_state = self.records.get(&account_id).unwrap_or_default();
+        them_state.rating = ((them_state.rating * them_state.votes.received as f32)
+            + (rating * my_state.rating) / 5.0)
+            / {
+                my_state.votes.given += 1;
+                them_state.votes.received += 1;
+                them_state.votes.received as f32
+            };
+        self.records.insert(&my_account_id, &my_state);
+        self.records.insert(&account_id, &them_state);
     }
 
     pub fn get_rating(&self, account_id: AccountId) -> Option<f32> {
@@ -85,8 +112,11 @@ mod tests {
         let context = get_context(vec![], false);
         testing_env!(context);
         let mut contract = NoseDive::default();
-        contract.vote_for("bob_near".parse().unwrap(), 1.0);
-        assert_eq!(Some(1.0), contract.get_rating("bob_near".parse().unwrap()));
+        contract.vote_for("alice_near".parse().unwrap(), 1.0);
+        assert_eq!(
+            Some(1.2),
+            contract.get_rating("alice_near".parse().unwrap())
+        );
     }
 
     #[test]
