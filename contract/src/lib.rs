@@ -35,7 +35,7 @@ impl NoseDive {
             "enter a valid rating between 0.5-5.0 (steps by 0.5)"
         );
         require!(
-            account_id == env::signer_account_id(),
+            account_id != env::signer_account_id(),
             "you can't rate yourself"
         );
         let mut user_state = self.records.get(&account_id).unwrap_or_default();
