@@ -46,7 +46,7 @@ impl Default for NoseDive {
 
 fn validate_rating(rating: f32) -> bool {
     let fract = rating.fract();
-    (rating > 0.0 && rating <= 5.0) && (fract == 0.0 || fract == 0.5)
+    (rating >= 0.0 && rating <= 5.0) && (fract == 0.0 || fract == 0.5)
 }
 
 #[near_bindgen]
@@ -54,27 +54,21 @@ impl NoseDive {
     pub fn vote_for(&mut self, account_id: AccountId, rating: f32) {
         require!(
             validate_rating(rating),
-            "enter a valid rating between 0.5-5.0 (steps by 0.5)"
+            "enter a valid rating: multiples of 0.5 between 0 and 5"
         );
-        println!("{} {}", account_id, env::signer_account_id());
-        assert!(
-            account_id != env::signer_account_id(),
-            "you can't rate yourself {} {}",
-            account_id,
-            env::signer_account_id()
-        );
-        let my_account_id = env::signer_account_id();
-        let mut my_state = self.records.get(&my_account_id).unwrap_or_default();
-        let mut them_state = self.records.get(&account_id).unwrap_or_default();
-        them_state.rating = ((them_state.rating * them_state.votes.received as f32)
-            + (rating + my_state.rating) / 2.0)
+        let your_account_id = env::signer_account_id();
+        require!(account_id != your_account_id, "you can't rate yourself");
+        let mut your_state = self.records.get(&your_account_id).unwrap_or_default();
+        let mut their_state = self.records.get(&account_id).unwrap_or_default();
+        their_state.rating = ((their_state.rating * their_state.votes.received as f32)
+            + (rating + your_state.rating) / 2.0)
             / {
-                my_state.votes.given += 1;
-                them_state.votes.received += 1;
-                them_state.votes.received as f32
+                your_state.votes.given += 1;
+                their_state.votes.received += 1;
+                their_state.votes.received as f32
             };
-        self.records.insert(&my_account_id, &my_state);
-        self.records.insert(&account_id, &them_state);
+        self.records.insert(&your_account_id, &your_state);
+        self.records.insert(&account_id, &their_state);
     }
 
     pub fn get_stats(&self, account_id: AccountId) -> Option<UserState> {
@@ -129,7 +123,7 @@ mod tests {
 
     #[test]
     fn validate_5_star_as_fract() {
-        for rating in [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0] {
+        for rating in [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0] {
             assert!(
                 validate_rating(rating),
                 "valid rating specification marked invalid: {:.1}",
@@ -141,7 +135,6 @@ mod tests {
             f32::NAN,
             -2.5,
             -0.1,
-            0.0,
             0.1,
             0.2,
             0.3,
