@@ -67,11 +67,11 @@ impl NoseDive {
         ))
     }
 
-    pub fn get_stats(&self, account_id: AccountId) -> UserState {
+    pub fn status(&self, account_id: AccountId) -> UserState {
         self.lookup(&account_id)
     }
 
-    pub fn vote_for(&mut self, account_id: AccountId, rating: u8) {
+    pub fn rate(&mut self, account_id: AccountId, rating: u8) {
         require!(
             validate_rating(rating),
             "enter a valid rating: multiples of 5 between 0 and 50"
@@ -117,8 +117,8 @@ mod tests {
         NoseDive::default()
     }
 
-    fn get_stats_for(account_id: AccountId) -> UserState {
-        stage(sys()).get_stats(account_id)
+    fn status(account_id: AccountId) -> UserState {
+        stage(sys()).status(account_id)
     }
 
     #[test]
@@ -127,7 +127,7 @@ mod tests {
         stage(bob()).register();
         // --
         assert_eq!(
-            get_stats_for(alice()),
+            status(alice()),
             UserState {
                 rating: 20,
                 votes: Votes {
@@ -137,7 +137,7 @@ mod tests {
             }
         );
         assert_eq!(
-            get_stats_for(bob()),
+            status(bob()),
             UserState {
                 rating: 20,
                 votes: Votes {
@@ -154,12 +154,12 @@ mod tests {
         stage(bob()).register();
         // --
         for _ in 1..=10 {
-            stage(bob()).vote_for(alice(), 45);
-            stage(alice()).vote_for(bob(), 50);
+            stage(bob()).rate(alice(), 45);
+            stage(alice()).rate(bob(), 50);
         }
         // --
         assert_eq!(
-            get_stats_for(alice()),
+            status(alice()),
             UserState {
                 rating: 34,
                 votes: Votes {
@@ -169,7 +169,7 @@ mod tests {
             }
         );
         assert_eq!(
-            get_stats_for(bob()),
+            status(bob()),
             UserState {
                 rating: 36,
                 votes: Votes {

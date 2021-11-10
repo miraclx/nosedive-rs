@@ -34,10 +34,10 @@ async function account(accountId, qualified = false) {
 async function stage(account, flags = "rw") {
   return new nearlib.Contract(account, nearConfig.contractName, {
     ...(
-      flags.includes('r') ? { viewMethods: ['get_stats'] } : {}
+      flags.includes('r') ? { viewMethods: ['status'] } : {}
     ),
     ...(
-      flags.includes('w') ? { changeMethods: ['register', 'vote_for'] } : {}
+      flags.includes('w') ? { changeMethods: ['register', 'rate'] } : {}
     )
   });
 }
@@ -45,7 +45,7 @@ async function stage(account, flags = "rw") {
 test('default', async () => {
   let alice = await stage(await account("alice"));
   await alice.register();
-  let aliceStats = await sys.get_stats({account_id: alice.account.accountId});
+  let aliceStats = await sys.status({account_id: alice.account.accountId});
   expect(aliceStats).toEqual({rating: 2.0, given: 0, received: 1});
 });
 
@@ -57,18 +57,18 @@ test('single entry', async () => {
   }).rejects.toThrow("this account has already been registered");
 });
 
-test('set_then_get_stats', async () => {
+test('rate_then_view_status', async () => {
   let carol = await stage(await account("carol"));
   await carol.register();
-  // --
+
   let derek = await stage(await account("derek"));
   await derek.register();
 
   let ratings = [1.0, 4.5, 2.0, 0.5, 1.5, 3.0, 5.0];
   for (let rating of ratings)
-    await carol.vote_for({account_id: derek.account.accountId, rating});
-  let carolStats = await sys.get_stats({account_id: carol.account.accountId});
-  let derekStats = await sys.get_stats({account_id: derek.account.accountId});
+    await carol.rate({account_id: derek.account.accountId, rating});
+  let carolStats = await sys.status({account_id: carol.account.accountId});
+  let derekStats = await sys.status({account_id: derek.account.accountId});
   expect(carolStats).toEqual({rating: 2.0, given: 7, received: 1})
   expect(derekStats).toMatchObject({
     rating: ratings.reduce((a, b, i) => ((a * (i + 1)) + (b + 2) / 2) / (i + 2), 2),
