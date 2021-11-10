@@ -51,15 +51,35 @@ fn validate_rating(rating: f32) -> bool {
 
 #[near_bindgen]
 impl NoseDive {
+    pub fn register(&mut self) {
+        let your_account_id = env::signer_account_id();
+        assert!(
+            !self.records.contains_key(&your_account_id),
+            "this account has already been registered: [{}]",
+            your_account_id
+        );
+        self.records.insert(&your_account_id, &UserState::default());
+    }
+
+    pub fn get_stats(&self, account_id: AccountId) -> Option<UserState> {
+        self.records.get(&account_id)
+    }
+
     pub fn vote_for(&mut self, account_id: AccountId, rating: f32) {
         require!(
             validate_rating(rating),
             "enter a valid rating: multiples of 0.5 between 0 and 5"
         );
         let your_account_id = env::signer_account_id();
+        let mut your_state = self.records.get(&your_account_id).expect(&format!(
+            "account does not exist on this service: [{}]",
+            your_account_id,
+        ));
+        let mut their_state = self.records.get(&account_id).expect(&format!(
+            "account does not exist on this service: [{}]",
+            account_id,
+        ));
         require!(account_id != your_account_id, "you can't rate yourself");
-        let mut your_state = self.records.get(&your_account_id).unwrap_or_default();
-        let mut their_state = self.records.get(&account_id).unwrap_or_default();
         their_state.rating = ((their_state.rating * their_state.votes.received as f32)
             + (rating + your_state.rating) / 2.0)
             / {
@@ -70,52 +90,91 @@ impl NoseDive {
         self.records.insert(&your_account_id, &your_state);
         self.records.insert(&account_id, &their_state);
     }
-
-    pub fn get_stats(&self, account_id: AccountId) -> Option<UserState> {
-        self.records.get(&account_id)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use near_sdk::{testing_env, VMContext};
+    use near_sdk::{
+        test_utils::{
+            test_env::{alice, bob},
+            VMContextBuilder,
+        },
+        testing_env,
+    };
 
-    // mock the context for testing, notice "signer_account_id" that was accessed above from env::
-    fn get_context(input: Vec<u8>, is_view: bool) -> VMContext {
-        VMContext {
-            current_account_id: "alice_near".to_string(),
-            signer_account_id: "bob_near".to_string(),
-            signer_account_pk: vec![0, 1, 2],
-            predecessor_account_id: "carol_near".to_string(),
-            input,
-            block_index: 0,
-            block_timestamp: 0,
-            account_balance: 0,
-            account_locked_balance: 0,
-            storage_usage: 0,
-            attached_deposit: 0,
-            prepaid_gas: 10u64.pow(18),
-            random_seed: vec![0, 1, 2],
-            is_view,
-            output_data_receivers: vec![],
-            epoch_height: 19,
-        }
+    fn sys() -> AccountId {
+        "nosedive_sys.near".parse().unwrap()
+    }
+
+    fn stage(account_id: AccountId) -> NoseDive {
+        let context = VMContextBuilder::new()
+            .current_account_id(sys())
+            .signer_account_id(account_id.clone())
+            .predecessor_account_id(account_id)
+            .build();
+        testing_env!(context);
+        NoseDive::default()
+    }
+
+    fn get_stats_for(account_id: AccountId) -> Option<UserState> {
+        stage(sys()).get_stats(account_id)
     }
 
     #[test]
-    fn set_then_get_rating() {
-        let context = get_context(vec![], false);
-        testing_env!(context);
-        let mut contract = NoseDive::default();
-        contract.vote_for("alice_near".parse().unwrap(), 1.0);
+    fn default() {
+        stage(alice()).register();
+        stage(bob()).register();
+        // --
         assert_eq!(
-            contract.get_stats("alice_near".parse().unwrap()),
+            get_stats_for(alice()),
             Some(UserState {
-                rating: 1.75,
+                rating: 2.0,
                 votes: Votes {
                     given: 0,
-                    received: 2,
+                    received: 1,
+                }
+            })
+        );
+        assert_eq!(
+            get_stats_for(bob()),
+            Some(UserState {
+                rating: 2.0,
+                votes: Votes {
+                    given: 0,
+                    received: 1,
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn set_then_get() {
+        stage(alice()).register();
+        stage(bob()).register();
+        // --
+        for _ in 1..=10 {
+            stage(bob()).vote_for(alice(), 4.5);
+            stage(alice()).vote_for(bob(), 5.0);
+        }
+        // --
+        assert_eq!(
+            get_stats_for(alice()),
+            Some(UserState {
+                rating: 3.7977424,
+                votes: Votes {
+                    given: 10,
+                    received: 11,
+                }
+            })
+        );
+        assert_eq!(
+            get_stats_for(bob()),
+            Some(UserState {
+                rating: 4.006109,
+                votes: Votes {
+                    given: 10,
+                    received: 11,
                 }
             })
         );
