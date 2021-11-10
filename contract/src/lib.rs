@@ -60,8 +60,15 @@ impl NoseDive {
         self.records.insert(&your_account_id, &UserState::default());
     }
 
-    pub fn get_stats(&self, account_id: AccountId) -> Option<UserState> {
-        self.records.get(&account_id)
+    fn lookup(&self, account_id: &AccountId) -> UserState {
+        self.records.get(&account_id).expect(&format!(
+            "account does not exist on this service: [{}]",
+            account_id,
+        ))
+    }
+
+    pub fn get_stats(&self, account_id: AccountId) -> UserState {
+        self.lookup(&account_id)
     }
 
     pub fn vote_for(&mut self, account_id: AccountId, rating: u8) {
@@ -70,14 +77,8 @@ impl NoseDive {
             "enter a valid rating: multiples of 5 between 0 and 50"
         );
         let your_account_id = env::signer_account_id();
-        let mut your_state = self.records.get(&your_account_id).expect(&format!(
-            "account does not exist on this service: [{}]",
-            your_account_id,
-        ));
-        let mut their_state = self.records.get(&account_id).expect(&format!(
-            "account does not exist on this service: [{}]",
-            account_id,
-        ));
+        let mut your_state = self.lookup(&your_account_id);
+        let mut their_state = self.lookup(&account_id);
         require!(account_id != your_account_id, "you can't rate yourself");
         their_state.rating = (((their_state.rating as u64 * their_state.votes.received)
             + (rating + your_state.rating) as u64 / 2)
@@ -116,7 +117,7 @@ mod tests {
         NoseDive::default()
     }
 
-    fn get_stats_for(account_id: AccountId) -> Option<UserState> {
+    fn get_stats_for(account_id: AccountId) -> UserState {
         stage(sys()).get_stats(account_id)
     }
 
@@ -127,23 +128,23 @@ mod tests {
         // --
         assert_eq!(
             get_stats_for(alice()),
-            Some(UserState {
+            UserState {
                 rating: 20,
                 votes: Votes {
                     given: 0,
                     received: 1,
                 }
-            })
+            }
         );
         assert_eq!(
             get_stats_for(bob()),
-            Some(UserState {
+            UserState {
                 rating: 20,
                 votes: Votes {
                     given: 0,
                     received: 1,
                 }
-            })
+            }
         );
     }
 
@@ -159,23 +160,23 @@ mod tests {
         // --
         assert_eq!(
             get_stats_for(alice()),
-            Some(UserState {
+            UserState {
                 rating: 34,
                 votes: Votes {
                     given: 10,
                     received: 11,
                 }
-            })
+            }
         );
         assert_eq!(
             get_stats_for(bob()),
-            Some(UserState {
+            UserState {
                 rating: 36,
                 votes: Votes {
                     given: 10,
                     received: 11,
                 }
-            })
+            }
         );
     }
 
