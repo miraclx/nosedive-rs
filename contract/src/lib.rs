@@ -85,13 +85,11 @@ impl NoseDive {
         let mut your_state = self.lookup(&your_account_id);
         let mut their_state = self.lookup(&account_id);
         require!(account_id != your_account_id, "you can't rate yourself");
-        their_state.rating = (((their_state.rating as u64 * their_state.votes.received)
-            + (rating + your_state.rating) as u64 / 2)
-            / {
-                your_state.votes.given += 1;
-                their_state.votes.received += 1;
-                their_state.votes.received
-            }) as u8;
+        let total_ratings = their_state.rating as u64 * their_state.votes.received;
+        let this_rating = (rating + your_state.rating) as u64 / 2;
+        their_state.votes.received += 1;
+        your_state.votes.given += 1;
+        their_state.rating = ((total_ratings + this_rating) / their_state.votes.received) as u8;
         self.records.insert(&your_account_id, &your_state);
         self.records.insert(&account_id, &their_state);
     }
