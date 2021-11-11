@@ -52,19 +52,24 @@ fn validate_rating(rating: u8) -> bool {
 impl NoseDive {
     pub fn register(&mut self) {
         let your_account_id = env::signer_account_id();
-        assert!(
-            !self.records.contains_key(&your_account_id),
-            "this account has already been registered: [{}]",
-            your_account_id
-        );
+        if self.records.contains_key(&your_account_id) {
+            env::panic_str(&format!(
+                "this account has already been registered: [{}]",
+                your_account_id
+            ));
+        }
         self.records.insert(&your_account_id, &UserState::default());
     }
 
     fn lookup(&self, account_id: &AccountId) -> UserState {
-        self.records.get(&account_id).expect(&format!(
-            "account does not exist on this service: [{}]",
-            account_id,
-        ))
+        let state = self.records.get(&account_id);
+        match state {
+            Some(state) => state,
+            None => env::panic_str(&format!(
+                "account does not exist on this service: [{}]",
+                account_id,
+            )),
+        }
     }
 
     pub fn status(&self, account_id: AccountId) -> UserState {
