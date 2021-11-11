@@ -57,20 +57,33 @@ test('single entry', async () => {
   }).rejects.toThrow("this account has already been registered");
 });
 
-test('rate_then_view_status', async () => {
-  let carol = await stage(await account("carol"));
-  await carol.register();
+test('no-account', async () => {
+  let carol = await account("carol");
+  await expect(async () => {
+    await sys.status({account_id: carol.accountId})
+  }).rejects.toThrow("account does not exist on this service");
 
+  let carolsMom = await stage(await account("carols-mom"));
+  await carolsMom.register();
+  await expect(async () => {
+    await carolsMom.rate({account_id: carol.accountId, rating: 5.0})
+  }).rejects.toThrow("account does not exist on this service");
+});
+
+test('rate_then_view_status', async () => {
   let derek = await stage(await account("derek"));
   await derek.register();
 
+  let emily = await stage(await account("emily"));
+  await emily.register();
+
   let ratings = [1.0, 4.5, 2.0, 0.5, 1.5, 3.0, 5.0];
   for (let rating of ratings)
-    await carol.rate({account_id: derek.account.accountId, rating});
-  let carolStats = await sys.status({account_id: carol.account.accountId});
+    await derek.rate({account_id: emily.account.accountId, rating});
   let derekStats = await sys.status({account_id: derek.account.accountId});
-  expect(carolStats).toEqual({rating: 2.0, given: 7, received: 1})
-  expect(derekStats).toMatchObject({
+  let emilyStats = await sys.status({account_id: emily.account.accountId});
+  expect(derekStats).toEqual({rating: 2.0, given: 7, received: 1})
+  expect(emilyStats).toMatchObject({
     rating: ratings.reduce((a, b, i) => ((a * (i + 1)) + (b + 2) / 2) / (i + 2), 2),
     given: 0,
     received: 8
