@@ -23,7 +23,7 @@ async function account(accountId, qualified = false) {
       await masterAccount.createAccount(
         account.accountId,
         masterKeyPair.getPublicKey(),
-        10n ** 26n
+        10n ** 25n
       );
       await keyStore.setKey(nearConfig.networkId, account.accountId, masterKeyPair);
     }
@@ -57,7 +57,7 @@ test('single entry', async () => {
   }).rejects.toThrow("this account has already been registered");
 });
 
-test('no-account', async () => {
+test('no account', async () => {
   let carol = await account("carol");
   await expect(async () => {
     await sys.status({account_id: carol.accountId})
@@ -70,7 +70,7 @@ test('no-account', async () => {
   }).rejects.toThrow("account does not exist on this service");
 });
 
-test('rate_then_view_status', async () => {
+test('rate then view status', async () => {
   let derek = await stage(await account("derek"));
   await derek.register();
 
