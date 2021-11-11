@@ -59,6 +59,7 @@ test('single entry', async () => {
 
 test('no account', async () => {
   let carol = await account("carol");
+  // await carol.register();
   await expect(async () => {
     await sys.status({account_id: carol.accountId})
   }).rejects.toThrow("account does not exist on this service");
