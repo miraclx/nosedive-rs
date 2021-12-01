@@ -37,10 +37,10 @@ async function account(accountId, qualified = false) {
 async function stage(account, flags = "rw") {
   return new nearlib.Contract(account, nearConfig.contractName, {
     ...(
-      flags.includes('r') ? { viewMethods: ['status'] } : {}
+      flags.includes('r') ? { viewMethods: ['status', 'rating_timestamps'] } : {}
     ),
     ...(
-      flags.includes('w') ? { changeMethods: ['register', 'rate', 'rating_timestamps', 'patch_state'] } : {}
+      flags.includes('w') ? { changeMethods: ['register', 'rate', 'patch_state'] } : {}
     )
   });
 }
@@ -103,7 +103,10 @@ test('lookup timestamps', async () => {
   let gary = await stage(await account("gary"));
   await gary.register();
 
-  expect(await fiona.rating_timestamps({account_id: gary.account.accountId})).toEqual({});
+  expect(await sys.rating_timestamps({
+    a: fiona.account.accountId,
+    b: gary.account.accountId
+  })).toEqual({ a_to_b: null, b_to_a: null });
 
   let start = Date.now();
 
@@ -115,12 +118,15 @@ test('lookup timestamps', async () => {
   await gary.rate({account_id: fiona.account.accountId, rating: 3.0});
   let gary_fiona = Date.now();
 
-  let ratings = await fiona.rating_timestamps({account_id: gary.account.accountId});
+  let ratings = await sys.rating_timestamps({
+    a: fiona.account.accountId,
+    b: gary.account.accountId
+  });
 
-  expect(ratings.you_rated_at / 1_000_000).toBeGreaterThanOrEqual(start);
-  expect(ratings.you_rated_at / 1_000_000).toBeLessThanOrEqual(fiona_gary);
-  expect(ratings.they_rated_at / 1_000_000).toBeGreaterThanOrEqual(fiona_gary);
-  expect(ratings.they_rated_at / 1_000_000).toBeLessThanOrEqual(gary_fiona);
+  expect(ratings.a_to_b / 1_000_000).toBeGreaterThanOrEqual(start);
+  expect(ratings.a_to_b / 1_000_000).toBeLessThanOrEqual(fiona_gary);
+  expect(ratings.b_to_a / 1_000_000).toBeGreaterThanOrEqual(fiona_gary);
+  expect(ratings.b_to_a / 1_000_000).toBeLessThanOrEqual(gary_fiona);
 });
 
 test('patch auth', async () => {

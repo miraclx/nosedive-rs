@@ -76,10 +76,8 @@ impl Default for NoseDive {
 #[derive(Eq, Debug, Serialize, PartialEq)]
 #[serde(crate = "near_sdk::serde")]
 pub struct RatingTimestamps {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    they_rated_at: Option<Timestamp>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    you_rated_at: Option<Timestamp>,
+    a_to_b: Option<Timestamp>,
+    b_to_a: Option<Timestamp>,
 }
 
 #[near_bindgen]
@@ -110,21 +108,17 @@ impl NoseDive {
         self.lookup(&account_id)
     }
 
-    pub fn rating_timestamps(&self, account_id: AccountId) -> RatingTimestamps {
-        let your_account_id = env::signer_account_id();
-        for id in [&your_account_id, &account_id] {
-            if !self.users.contains_key(&id) {
-                env::panic_str(&format!("account does not exist on this service: [{}]", id,));
+    pub fn rating_timestamps(&self, a: AccountId, b: AccountId) -> RatingTimestamps {
+        for id in [&a, &b] {
+            if !self.users.contains_key(id) {
+                env::panic_str(&format!("account does not exist on this service: [{}]", id));
             }
         }
-        let you_them = (your_account_id, account_id);
-        let you_rated_at = self.history.get(&you_them);
-        let they_you = (you_them.1, you_them.0);
-        let they_rated_at = self.history.get(&they_you);
-        RatingTimestamps {
-            you_rated_at,
-            they_rated_at,
-        }
+        let ab_pair = (a, b);
+        let a_to_b = self.history.get(&ab_pair);
+        let ba_pair = (ab_pair.1, ab_pair.0);
+        let b_to_a = self.history.get(&ba_pair);
+        RatingTimestamps { a_to_b, b_to_a }
     }
 
     pub fn rate(&mut self, account_id: AccountId, rating: f32) {
@@ -361,10 +355,10 @@ mod tests {
         stage(bob()).register();
         // --
         assert_eq!(
-            stage(alice()).rating_timestamps(bob()),
+            stage(sys()).rating_timestamps(alice(), bob()),
             RatingTimestamps {
-                they_rated_at: None,
-                you_rated_at: None,
+                a_to_b: None,
+                b_to_a: None,
             }
         );
         // --
@@ -377,15 +371,15 @@ mod tests {
         stage(alice()).rate(bob(), 4.5);
         let alice_bob = now();
         // --
-        let ratings = stage(alice()).rating_timestamps(bob());
+        let ratings = stage(sys()).rating_timestamps(alice(), bob());
         assert!(matches!(
             ratings,
             RatingTimestamps {
-                you_rated_at: Some(you_rated_at),
-                they_rated_at: Some(they_rated_at)
+                a_to_b: Some(a_to_b),
+                b_to_a: Some(b_to_a)
             }
-            if (start..=bob_alice).contains(&they_rated_at)
-            && (bob_alice..=alice_bob).contains(&you_rated_at)
+            if (start..=bob_alice).contains(&b_to_a)
+            && (bob_alice..=alice_bob).contains(&a_to_b)
         ));
     }
 
