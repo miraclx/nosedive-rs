@@ -306,6 +306,20 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "this account has already been registered")]
+    fn single_entry() {
+        stage(alice()).register();
+        stage(alice()).register();
+    }
+
+    #[test]
+    #[should_panic(expected = "account does not exist on this service")]
+    fn no_account() {
+        stage(alice()).register();
+        stage(alice()).rate(bob(), 5.0);
+    }
+
+    #[test]
     fn rate_then_view() {
         stage(sys()).patch_state(ContractPatch(vec![PatchSpec::SetVotingInterval(None)]));
 
