@@ -1,6 +1,9 @@
 const {log} = require("console");
+const {promisify} = require("util");
 
-jest.setTimeout(30000);
+jest.setTimeout(100_000);
+
+const sleep = promisify(setTimeout);
 
 let NEAR, sys, keyStore, masterKeyPair, masterAccount;
 
@@ -9,7 +12,7 @@ beforeAll(async function () {
   keyStore = nearConfig.deps.keyStore;
   masterKeyPair = await keyStore.getKey(nearConfig.networkId, nearConfig.contractName);
   masterAccount = await NEAR.account(nearConfig.contractName);
-  sys = await stage(await account(nearConfig.contractName, true), 'r');
+  sys = await stage(await account(nearConfig.contractName, true));
 });
 
 async function account(accountId, qualified = false) {
@@ -37,7 +40,7 @@ async function stage(account, flags = "rw") {
       flags.includes('r') ? { viewMethods: ['status'] } : {}
     ),
     ...(
-      flags.includes('w') ? { changeMethods: ['register', 'rate'] } : {}
+      flags.includes('w') ? { changeMethods: ['register', 'rate', 'rating_timestamps', 'patch_state'] } : {}
     )
   });
 }
@@ -72,6 +75,8 @@ test('no account', async () => {
 });
 
 test('rate then view status', async () => {
+  await sys.patch_state({patches: {voting_interval: null}});
+
   let derek = await stage(await account("derek"));
   await derek.register();
 
@@ -89,4 +94,75 @@ test('rate then view status', async () => {
     given: 0,
     received: 8
   })
+});
+
+test('lookup timestamps', async () => {
+  let fiona = await stage(await account("fiona"));
+  await fiona.register();
+
+  let gary = await stage(await account("gary"));
+  await gary.register();
+
+  expect(await fiona.rating_timestamps({account_id: gary.account.accountId})).toEqual({});
+
+  let start = Date.now();
+
+  await fiona.rate({account_id: gary.account.accountId, rating: 3.0});
+  let fiona_gary = Date.now();
+
+  await sleep(2000);
+
+  await gary.rate({account_id: fiona.account.accountId, rating: 3.0});
+  let gary_fiona = Date.now();
+
+  let ratings = await fiona.rating_timestamps({account_id: gary.account.accountId});
+
+  expect(ratings.you_rated_at / 1_000_000).toBeGreaterThanOrEqual(start);
+  expect(ratings.you_rated_at / 1_000_000).toBeLessThanOrEqual(fiona_gary);
+  expect(ratings.they_rated_at / 1_000_000).toBeGreaterThanOrEqual(fiona_gary);
+  expect(ratings.they_rated_at / 1_000_000).toBeLessThanOrEqual(gary_fiona);
+});
+
+test('patch auth', async () => {
+  await expect(async () => {
+    let helen = await stage(await account("helen"));
+    await helen.patch_state({patches: {voting_interval: null}})
+  }).rejects.toThrow("only the account that deployed this contract is permitted to call this method");
+
+  await sys.patch_state({patches: {voting_interval: null}})
+});
+
+test('interval', async () => {
+  let ivan = await stage(await account("ivan"));
+  await ivan.register();
+
+  let janet = await stage(await account("janet"));
+  await janet.register();
+
+  await sys.patch_state({
+    patches: {
+      voting_interval: {
+        secs: 60,
+        msg: "all you had to do was wait a minute"
+      }
+    }
+  });
+
+  await ivan.rate({account_id: janet.account.accountId, rating: 4.5});
+  await expect(async () => {
+    await ivan.rate({account_id: janet.account.accountId, rating: 4.5});
+  }).rejects.toThrow("all you had to do was wait a minute");
+
+  await sys.patch_state({
+    patches: {
+      voting_interval: {
+        secs: 2,
+        msg: "wait at least two seconds to be allowed to vote the same person again"
+      }
+    }
+  });
+
+  await ivan.rate({account_id: janet.account.accountId, rating: 4.5});
+  await sleep(3);
+  await ivan.rate({account_id: janet.account.accountId, rating: 4.5});
 });
