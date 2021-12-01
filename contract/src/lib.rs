@@ -42,7 +42,7 @@ impl Default for VoteInterval {
     fn default() -> Self {
         Self {
             secs: 5 * 60,
-            msg: "you can't vote more than once in 5 minutes".to_string(),
+            msg: "you can't vote the same account more than once in 5 minutes".to_string(),
         }
     }
 }
@@ -417,7 +417,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "you can't vote more than once in 5 minutes")]
+    #[should_panic(expected = "you can't vote the same account more than once in 5 minutes")]
     fn default_interval_violation() {
         stage(alice()).register();
         stage(bob()).register();
