@@ -1,4 +1,4 @@
-const CONTRACT_NAME = process.env.CONTRACT_NAME ||'nosedive-rs'
+const CONTRACT_NAME = process.env.CONTRACT_NAME ||'nosedive.testnet'
 
 function getConfig(env) {
   switch (env) {
